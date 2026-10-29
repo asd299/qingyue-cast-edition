@@ -7,6 +7,9 @@
     <uses-sdk tools:overrideLibrary="androidx.core.pip" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- ucoffice 里的拍照 / 扫描入口会用到 -->
     <uses-permission android:name="android.permission.CAMERA" />

@@ -11,12 +11,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
 import androidx.core.util.Consumer
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
@@ -25,6 +28,11 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import dev.anilbeesetti.nextplayer.core.cast.CastDevice
+import dev.anilbeesetti.nextplayer.core.cast.CastManager
+import dev.anilbeesetti.nextplayer.core.cast.CastMimeTypes
+import dev.anilbeesetti.nextplayer.core.cast.CastStatus
+import dev.anilbeesetti.nextplayer.core.cast.CastUiState
 import dev.anilbeesetti.nextplayer.core.common.extensions.getInitialDirectoryUri
 import dev.anilbeesetti.nextplayer.core.common.extensions.getMediaContentUri
 import dev.anilbeesetti.nextplayer.core.common.service.registerForSuspendActivityResult
@@ -42,6 +50,7 @@ import dev.anilbeesetti.nextplayer.feature.player.service.setVideoDecoderMode
 import dev.anilbeesetti.nextplayer.feature.player.service.stopPlayerSession
 import dev.anilbeesetti.nextplayer.feature.player.service.tryDecoderFallback
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberMediaController
+import dev.anilbeesetti.nextplayer.feature.player.ui.CastDevicePanel
 import dev.anilbeesetti.nextplayer.feature.player.ui.PlayerSettingsOverlay
 import dev.anilbeesetti.nextplayer.feature.player.utils.PlayerApi
 import dev.anilbeesetti.nextplayer.feature.player.utils.PlaylistPlaybackContract
@@ -51,6 +60,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -84,6 +94,11 @@ class PlayerActivity : ComponentActivity() {
     private var mediaController by mutableStateOf<MediaController?>(value = null)
     private lateinit var playerApi: PlayerApi
     private var playbackRequestJob: Job? = null
+
+    private val castManager by lazy { CastManager(context = applicationContext) }
+    private var castState by mutableStateOf(value = CastUiState())
+    private var showCastPanel by mutableStateOf(value = false)
+    private var resumeLocalPlaybackAfterCast = false
 
     private val playbackStateListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -158,13 +173,45 @@ class PlayerActivity : ComponentActivity() {
                 startPlayback()
             }
 
+            LaunchedEffect(key1 = Unit) {
+                var previousDevice: CastDevice? = null
+                castManager.state.collect { state ->
+                    castState = state
+                    if (previousDevice != null && state.castingDevice == null) {
+                        if (resumeLocalPlaybackAfterCast) mediaController?.play()
+                        resumeLocalPlaybackAfterCast = false
+                    }
+                    previousDevice = state.castingDevice
+                }
+            }
+
             NextPlayerTheme(darkTheme = true) {
                 var showSettings by rememberSaveable { mutableStateOf(value = false) }
-                MediaPlayerScreen(
-                    viewModel = viewModel,
-                    player = player,
-                    onSettingsClick = { showSettings = true },
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    MediaPlayerScreen(
+                        viewModel = viewModel,
+                        player = player,
+                        onSettingsClick = { showSettings = true },
+                        isCasting = castState.status == CastStatus.CASTING ||
+                            castState.status == CastStatus.CONNECTING,
+                        onCastClick = {
+                            showCastPanel = true
+                            if (castState.status != CastStatus.CASTING) castManager.discover()
+                        },
+                    )
+                    if (showCastPanel) {
+                        CastDevicePanel(
+                            state = castState,
+                            onDismiss = { showCastPanel = false },
+                            onRefresh = { castManager.discover() },
+                            onDeviceClick = ::startCasting,
+                            onPlayPauseClick = {
+                                if (castState.isPlaying) castManager.pause() else castManager.play()
+                            },
+                            onStopClick = { castManager.stopCasting() },
+                        )
+                    }
+                }
                 if (showSettings) {
                     PlayerSettingsOverlay(onDismiss = { showSettings = false })
                 }
@@ -245,6 +292,31 @@ class PlayerActivity : ComponentActivity() {
                 ).show()
             }
         }
+    }
+
+    private fun startCasting(device: CastDevice) {
+        val controller = mediaController ?: return
+        val mediaItem = controller.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri ?: return
+        val title = mediaItem.mediaMetadata.title?.toString()
+            ?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment
+            ?: getString(coreUiR.string.unknown)
+        val mimeType = CastMimeTypes.resolve(
+            contentResolver = contentResolver,
+            uri = uri,
+            hint = mediaItem.localConfiguration?.mimeType,
+            title = mediaItem.mediaMetadata.title?.toString(),
+        )
+        resumeLocalPlaybackAfterCast = controller.playWhenReady
+        controller.pause()
+        castManager.cast(
+            device = device,
+            uri = uri,
+            title = title,
+            mimeType = mimeType,
+            positionMs = controller.currentPosition,
+        )
     }
 
     private fun onControllerStopped() {
@@ -440,6 +512,11 @@ class PlayerActivity : ComponentActivity() {
     private fun finishAndStopPlayerSession() {
         finish()
         mediaController?.stopPlayerSession()
+    }
+
+    override fun onDestroy() {
+        castManager.release()
+        super.onDestroy()
     }
 
     override fun onWindowAttributesChanged(params: WindowManager.LayoutParams?) {

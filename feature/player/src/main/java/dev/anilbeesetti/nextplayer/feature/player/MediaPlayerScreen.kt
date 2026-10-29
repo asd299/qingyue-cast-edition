@@ -49,7 +49,13 @@ val LocalUseMaterialYouControls = compositionLocalOf { false }
 
 @OptIn(UnstableApi::class)
 @Composable
-fun MediaPlayerScreen(viewModel: PlayerViewModel, player: Player?, onSettingsClick: () -> Unit) {
+fun MediaPlayerScreen(
+    viewModel: PlayerViewModel,
+    player: Player?,
+    onSettingsClick: () -> Unit,
+    isCasting: Boolean = false,
+    onCastClick: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     MediaPlayerContent(
@@ -57,6 +63,8 @@ fun MediaPlayerScreen(viewModel: PlayerViewModel, player: Player?, onSettingsCli
         state = state,
         onAction = viewModel::onAction,
         onSettingsClick = onSettingsClick,
+        isCasting = isCasting,
+        onCastClick = onCastClick,
     )
 }
 
@@ -67,6 +75,8 @@ internal fun MediaPlayerContent(
     state: PlayerUiState,
     onAction: (PlayerAction) -> Unit,
     onSettingsClick: () -> Unit = {},
+    isCasting: Boolean = false,
+    onCastClick: () -> Unit = {},
 ) {
     val playerPreferences = state.playerPreferences
     val isPreview = LocalInspectionMode.current
@@ -198,6 +208,8 @@ internal fun MediaPlayerContent(
             seekGestureState = seekGestureState,
             videoZoomAndContentScaleState = videoZoomAndContentScaleState,
             isPipSupported = pictureInPictureState?.isPipSupported == true,
+            isCasting = isCasting,
+            onCastClick = onCastClick,
             onSettingsClick = onSettingsClick,
             onPictureInPictureClick = {
                 pictureInPictureState?.let {

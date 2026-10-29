@@ -43,6 +43,8 @@ fun PlayerControls(
     progressState: ProgressStateWithTickInterval,
     chaptersState: ChaptersState,
     isPipSupported: Boolean,
+    isCasting: Boolean,
+    onCastClick: () -> Unit,
     onShowOverlay: (OverlayView) -> Unit,
     onToggleTimeDisplay: () -> Unit,
     onPictureInPictureClick: () -> Unit,
@@ -62,7 +64,9 @@ fun PlayerControls(
             ) {
                 ControlsTopView(
                     title = title,
+                    isCasting = isCasting,
                     onDetailsClick = { onShowOverlay(OverlayView.MEDIA_DETAILS) },
+                    onCastClick = onCastClick,
                     onSettingsClick = onSettingsClick,
                 )
             }

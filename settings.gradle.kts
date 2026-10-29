@@ -30,6 +30,7 @@ providers.gradleProperty("nextlibPath").orNull?.let { nextlibPath ->
 
 rootProject.name = "MyFileReader"
 include(":app")
+include(":core:cast")
 include(":core:common")
 include(":core:data")
 include(":core:database")

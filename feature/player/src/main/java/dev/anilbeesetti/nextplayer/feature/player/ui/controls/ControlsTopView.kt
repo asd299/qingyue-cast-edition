@@ -36,7 +36,9 @@ import dev.anilbeesetti.nextplayer.feature.player.buttons.PlayerButton
 fun ControlsTopView(
     modifier: Modifier = Modifier,
     title: String,
+    isCasting: Boolean = false,
     onDetailsClick: () -> Unit = {},
+    onCastClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
 ) {
     val firstControlFocusRequester = remember { FocusRequester() }
@@ -73,6 +75,12 @@ fun ControlsTopView(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(weight = 1f),
         )
+        PlayerButton(onClick = onCastClick) {
+            Icon(
+                imageVector = if (isCasting) NextIcons.CastConnected else NextIcons.Cast,
+                contentDescription = stringResource(R.string.cast),
+            )
+        }
         PlayerButton(onClick = onSettingsClick) {
             Icon(
                 imageVector = NextIcons.Settings,

@@ -142,6 +142,32 @@ app-arm64-v8a-debug.apk   53,000,634 B  (1.7.1 / 16)
 - APK 内含 `assets/ucoffice/ucoffice-master.apk`、`assets/pdfviewer/pdfviewer-master.apk`
   与 `lib/arm64-v8a/libpdfium.so`、`libpdfsdk_jni.so`、`libtiff*.so`
 
+### 夸克式投屏（1.7.1 / code 16，轻阅投屏特别版）
+
+夸克的投屏是远程下发的 Qigsaw 模块（`lebo_projection` / `youku_projection`）+ 乐播/优酷
+商业 SDK，按 appId / 包名 / 签名授权，无法原样移植。这里做「夸克同款交互 + 自研 DLNA 传输」：
+
+- [x] 新增模块 `core:cast`（零第三方依赖），`settings.gradle.kts` 注册，`feature:player` 依赖
+- [x] `SsdpDiscovery`：M-SEARCH（ST=MediaRenderer:1，239.255.255.250:1900）发现设备，
+      MulticastLock 加持，解析 description 取 UDN / friendlyName / AVTransport controlURL
+- [x] `AvTransportClient`：SOAP 调 SetAVTransportURI / Play / Pause / Stop / Seek /
+      GetPositionInfo / GetTransportInfo
+- [x] `LocalMediaServer`：手机端随机端口 HTTP 服务，GET/HEAD + Range → 206，
+      `content://` 有长度走 ContentResolver，无长度落盘 cacheDir
+- [x] `CastManager`：IDLE / DISCOVERING / CONNECTING / CASTING 状态机，2s 轮询进度，
+      投屏前暂停本地播放并从当前进度续投，停止或失败后恢复本地播放
+- [x] UI：`ControlsTopView` 顶栏投屏按钮（投屏中切换实心图标）、`CastDevicePanel`
+      居中弹层（设备列表 / 搜索中 / 无设备 / 连接失败 / 投屏中播放暂停 + 停止）
+- [x] `NextIcons` 增加 `Cast` / `CastConnected`；`core:ui` 文案新增 14 条 `cast_*`
+- [x] 权限：`ACCESS_NETWORK_STATE`、`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`
+      （`ACCESS_LOCAL_NETWORK` 原清单已有）
+- [x] `PlayerActivity` 持有 `CastManager`，`onDestroy` 释放
+- [x] 构建通过（`:app:assembleDebug`），产出 `app-arm64-v8a-debug.apk`
+
+限制：只投 DLNA 设备（不含乐播私有协议 / AirPlay / 屏幕镜像）；电视不支持的外挂字幕不会随投；
+`ktlintCheck` 因构建环境拉不到 ktlint 依赖未执行，代码按 `call-layout` 规则人工排版；
+SSDP / SOAP / Range 兼容性尚未真机验证。
+
 ### 待办 / 已知限制
 
 - [ ] PDF / Office 界面本身来自夸克 split，无法换成 Compose 主题；Office 已在「Office 主题色改造」里手工换色，PDF 仍是夸克原配色

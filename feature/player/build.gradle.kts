@@ -38,6 +38,7 @@ kotlin {
 
 dependencies {
 
+    implementation(project(":core:cast"))
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
     implementation(project(":core:data"))
